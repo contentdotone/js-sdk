@@ -1,4 +1,4 @@
-# zesty-sdk
+# js-sdk
 
 Zero-dependency TypeScript SDK for the [Zesty.io](https://www.zesty.io/) API. Single-file drop-in — copy `zesty-sdk.ts` into your project or install from npm.
 
@@ -6,7 +6,7 @@ Zero-dependency TypeScript SDK for the [Zesty.io](https://www.zesty.io/) API. Si
 
 ## What is this?
 
-`zesty-sdk` wraps every Zesty.io API surface in a typed, ergonomic client:
+`js-sdk` wraps every Zesty.io API surface in a typed, ergonomic client:
 
 - **Accounts API** — instances, users, roles, teams, domains, tokens, invites, audit logs
 - **Instance content API** — models, fields, items, publishings, views, head tags, settings, redirects, languages
@@ -48,7 +48,7 @@ await zesty.content.items.publish("8-xyz-abc", "7-model", "6-item", { version: 3
 **Option A — npm**
 
 ```bash
-npm install zesty-sdk
+npm install js-sdk
 ```
 
 **Option B — single-file drop-in**

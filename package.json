@@ -1,5 +1,5 @@
 {
-  "name": "zesty-sdk",
+  "name": "js-sdk",
   "version": "1.0.0",
   "description": "Zero-dependency TypeScript SDK for the Zesty.io API. Single-file drop-in.",
   "main": "dist/zesty-sdk.js",
