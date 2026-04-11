@@ -1487,8 +1487,19 @@ export function createZestySdk(config: ZestyConfig = {}) {
     },
   };
 
+  const mediaFiles = {
+    /**
+     * Get a single media file by its ZUIDZUID.
+     * GET https://media-manager.api.zesty.io/file/{fileZuid}
+     */
+    async get(fileZuid: string): Promise<MediaFile> {
+      return request<MediaFile>("GET", mediaManagerUrl(`/file/${fileZuid}`));
+    },
+  };
+
   const media = {
     bins: mediaBins,
+    files: mediaFiles,
 
     /**
      * Upload a file to the Zesty Media Storage API.
