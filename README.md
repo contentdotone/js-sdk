@@ -31,14 +31,14 @@ const zesty = createZestySdk({
 // List instances
 const instances = await zesty.accounts.listInstances();
 
-// List content models on the default instance
+// List content models (uses the configured default instanceZuid)
 const models = await zesty.content.models.list();
 
-// Fetch a single content item
-const item = await zesty.content.items.get("8-xyz-abc", "7-model", "6-item");
+// Fetch a single content item — modelZuid, itemZuid (instanceZuid optional last)
+const item = await zesty.content.items.get("7-model", "6-item");
 
 // Publish it
-await zesty.content.items.publish("8-xyz-abc", "7-model", "6-item", { version: 3 });
+await zesty.content.items.publish("7-model", "6-item", { version: 3 });
 ```
 
 ---
@@ -253,44 +253,56 @@ zesty.audits.createComment(instanceZuid: string, payload: { resourceZUID: string
 ### `content.models`
 
 ```ts
+// instanceZuid is always the optional last parameter; omit it when the SDK
+// was configured with a default instanceZuid at creation time.
+
 zesty.content.models.list(instanceZuid?: string)
 // → GET /v1/content/models
 
-zesty.content.models.create(instanceZuid: string, payload: { name: string; label: string; type: "templateset" | "dataset" | "pageset" })
-// → POST /v1/content/models
+zesty.content.models.get(modelZuid: string, instanceZuid?: string)
+// → GET /v1/content/models/{modelZuid}
 
-zesty.content.models.fields.list(instanceZuid: string, modelZuid: string)
+zesty.content.models.create(data: { name: string; label: string; type: "templateset" | "dataset" | "pageset" }, instanceZuid?: string)
+// → POST /v1/content/models
+```
+
+### `content.fields`
+
+```ts
+zesty.content.fields.list(modelZuid: string, instanceZuid?: string)
 // → GET /v1/content/models/{modelZuid}/fields
 
-zesty.content.models.fields.create(instanceZuid: string, modelZuid: string, payload: FieldPayload)
+zesty.content.fields.create(modelZuid: string, payload: FieldPayload, instanceZuid?: string)
 // → POST /v1/content/models/{modelZuid}/fields
 // payload: { contentModelZUID, name, label, datatype, required, sort, settings: { list, defaultValue } }
 
-zesty.content.models.fields.delete(instanceZuid: string, modelZuid: string, fieldZuid: string)
+zesty.content.fields.delete(modelZuid: string, fieldZuid: string, instanceZuid?: string)
 // → DELETE /v1/content/models/{modelZuid}/fields/{fieldZuid}
 ```
 
 ### `content.items`
 
 ```ts
-zesty.content.items.list(instanceZuid: string, modelZuid: string)
+zesty.content.items.list(modelZuid: string, opts?: { limit?: number; page?: number; lang?: string }, instanceZuid?: string)
 // → GET /v1/content/models/{modelZuid}/items
 
-zesty.content.items.get(instanceZuid: string, modelZuid: string, itemZuid: string)
+zesty.content.items.get(modelZuid: string, itemZuid: string, instanceZuid?: string)
 // → GET /v1/content/models/{modelZuid}/items/{itemZuid}
 
-zesty.content.items.create(instanceZuid: string, modelZuid: string, payload: ContentItemPayload)
+zesty.content.items.create(modelZuid: string, payload: ContentItemPayload, instanceZuid?: string)
 // → POST /v1/content/models/{modelZuid}/items
-// payload: { data: {...}, web: { canonicalTagMode, pathPart, ...webFields }, meta: { langID, contentModelZUID } }
+// payload: { data: {...}, web: { pathPart, ...webFields }, meta: { langID, contentModelZUID } }
 
-zesty.content.items.update(instanceZuid: string, modelZuid: string, itemZuid: string, payload: { data: Record<string, unknown> })
+zesty.content.items.update(modelZuid: string, itemZuid: string, data: { data?: Record<string, unknown>; web?: Partial<ContentItemWeb>; meta?: Partial<ContentItemMeta> }, instanceZuid?: string)
+// → PUT /v1/content/models/{modelZuid}/items/{itemZuid}
+
+zesty.content.items.patch(modelZuid: string, itemZuid: string, data: { data?: Record<string, unknown>; web?: Partial<ContentItemWeb>; meta?: Partial<ContentItemMeta> }, instanceZuid?: string)
 // → PATCH /v1/content/models/{modelZuid}/items/{itemZuid}
 
-zesty.content.items.publish(instanceZuid: string, modelZuid: string, itemZuid: string, payload: { version: number; publishAt?: string; unpublishAt?: string })
+zesty.content.items.publish(modelZuid: string, itemZuid: string, opts: { version: number; publishesAt?: string; unpublishAt?: string }, instanceZuid?: string)
 // → POST /v1/content/models/{modelZuid}/items/{itemZuid}/publishings
-// payload: { publish: true, version, publishAt: "now", unpublishAt: "never" }
 
-zesty.content.items.search(instanceZuid: string, query: string, limit?: number)
+zesty.content.items.search(query: string, opts?: { limit?: number }, instanceZuid?: string)
 // → GET /v1/search/items?q={query}&limit={limit}
 ```
 
@@ -389,7 +401,7 @@ All non-2xx responses throw `ZestyApiError`:
 import createZestySdk, { ZestyApiError } from "./zesty-sdk";
 
 try {
-  await zesty.content.items.get(instanceZuid, modelZuid, itemZuid);
+  await zesty.content.items.get(modelZuid, itemZuid);
 } catch (err) {
   if (err instanceof ZestyApiError) {
     console.error(err.status);   // HTTP status code (e.g. 404)
@@ -547,7 +559,7 @@ The UMD build exposes a global `ZestySdk` object with all named exports.
   // readCookie + browser SSO session → no authToken needed on authenticated pages
   const sdk = ZestySdk.createZestyVanilla({ instanceZuid: "8-abc-xyz" });
 
-  sdk.content.models.list("8-abc-xyz").then((models) => {
+  sdk.content.models.list().then((models) => {
     models.forEach((m) => console.log(m.name));
   });
 
@@ -581,7 +593,7 @@ const { createZestyNode } = require("js-sdk");
 
 const sdk = createZestyNode({ authToken: process.env.ZESTY_TOKEN });
 
-sdk.content.models.list("8-abc-xyz").then((models) => console.log(models));
+sdk.content.models.list().then((models) => console.log(models));
 ```
 
 ---
@@ -609,7 +621,8 @@ const sdk: ZestySdk = createZestySdk({
   instanceZuid: "8-abc-xyz",
 });
 
-// sdk.content.models.list() is fully typed → Promise<ContentModel[]>
+// All content methods have instanceZuid as optional last param — omit when SDK is pre-configured
+// sdk.content.models.list() → Promise<ContentModel[]>
 const models: ContentModel[] = await sdk.content.models.list();
 
 // Error type is exported for catch blocks
