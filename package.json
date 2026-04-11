@@ -1,0 +1,29 @@
+{
+  "name": "zesty-sdk",
+  "version": "1.0.0",
+  "description": "Zero-dependency TypeScript SDK for the Zesty.io API. Single-file drop-in.",
+  "main": "dist/zesty-sdk.js",
+  "module": "dist/zesty-sdk.js",
+  "types": "dist/zesty-sdk.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/zesty-sdk.js",
+      "require": "./dist/zesty-sdk.js",
+      "types": "./dist/zesty-sdk.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "zesty-sdk.ts"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["zesty", "cms", "sdk", "typescript", "zero-dependency"],
+  "author": "Content.One",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
