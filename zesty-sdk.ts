@@ -269,12 +269,35 @@ export interface InstanceSetting {
   tips?: string;
 }
 
+/** Top-level media container per instance. Each instance has at least one bin. */
 export interface MediaBin {
+  /** ZUIDZUID for this bin, e.g. "1-14f97646-ksjch7". Pass this as binZuid to media.upload(). */
+  id: string;
+  name: string;
+  /** Numeric instance ID as a string (matches Instance.ID). */
+  site_id: string;
+  eco_id: string | null;
+  storage_driver: string;
+  /** GCP bucket name — used internally by media.upload() to build the upload URL. */
+  storage_name: string;
+  storage_base_url: string;
+  cdn_driver: string;
+  /** CDN base URL for all files in this bin, e.g. "https://82ngtwrd.media.zestyio.com". */
+  cdn_base_url: string;
+  default: boolean;
+  created_at: string;
+  deleted_at: string | null;
+  deleted_from_storage_at: string | null;
+}
+
+/** Subfolder within a bin. Group ZUIDZUID can be passed as groupZuid to media.upload(). */
+export interface MediaGroup {
   id: string;
   name?: string;
-  storage_name?: string;
-  default?: boolean;
-  site_id?: number;
+  bin_id?: string;
+  group_id?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface MediaFile {
@@ -284,15 +307,6 @@ export interface MediaFile {
   title?: string;
   type?: string;
   size?: number;
-  bin_id?: string;
-  group_id?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface MediaGroup {
-  id: string;
-  name?: string;
   bin_id?: string;
   group_id?: string;
   created_at?: string;
@@ -1435,22 +1449,106 @@ export function createZestySdk(config: ZestyConfig = {}) {
   };
 
   // ── media ─────────────────────────────────────────────────────────────────────
+  //
+  // Concepts:
+  //   bin   — top-level media container, one or more per instance. Each has a
+  //           GCP storage_name and a CDN cdn_base_url. The default bin is
+  //           marked with `default: true`.
+  //   group — subfolder within a bin (optional nesting). group_id defaults to
+  //           bin id for root-level uploads.
+  //   file  — a single uploaded asset. Identified by its ZUIDZUID (e.g. "3-…").
+  //
+  // Endpoints:
+  //   media-manager: https://media-manager.api.zesty.io  (metadata)
+  //   media-storage: https://media-storage.api.zesty.io  (binary uploads)
+  //
+  // Auth: Bearer token (same APP_SID used throughout the SDK).
 
   const mediaBins = {
     /**
-     * List media bins for an instance.
-     * GET https://media-manager.api.zesty.io/site/{instanceId}/bins
+     * List all media bins for an instance.
+     * <!-- http: GET https://media-manager.api.zesty.io/site/{numericInstanceId}/bins -->
      *
-     * Note: instanceId is the numeric ID, not the ZUIDZUID. Call accounts.getInstance()
-     * to get it from Instance.ID.
+     * @param numericInstanceId - Instance.ID (numeric), not the ZUIDZUID.
+     *   Call accounts.getInstance(instanceZuid) to get Instance.ID.
      */
-    async list(instanceId: number | string): Promise<MediaBin[]> {
-      return request<MediaBin[]>("GET", mediaManagerUrl(`/site/${instanceId}/bins`));
+    async list(numericInstanceId: number | string): Promise<MediaBin[]> {
+      return request<MediaBin[]>("GET", mediaManagerUrl(`/site/${numericInstanceId}/bins`));
     },
 
     /**
-     * Search media files across bins.
-     * GET https://media-manager.api.zesty.io/search/files?bins={binZuid}&term={term}
+     * Get a single media bin by its ZUIDZUID.
+     * <!-- http: GET https://media-manager.api.zesty.io/bin/{binId} -->
+     */
+    async get(binId: string): Promise<MediaBin> {
+      const bins = await request<MediaBin[]>("GET", mediaManagerUrl(`/bin/${binId}`));
+      return Array.isArray(bins) ? bins[0] : bins;
+    },
+
+    /**
+     * Convenience: resolve the default bin for an instance without needing the numeric ID.
+     * <!-- http: GET /instances/{instanceZuid} + /site/{numericId}/bins -->
+     *
+     * Internally calls accounts.getInstance() to resolve the numeric ID, then lists bins.
+     * Returns the bin with `default: true`, or the first bin if none is flagged.
+     *
+     * @param instanceZuid - Instance ZUIDZUID (uses SDK default if omitted).
+     */
+    async getDefault(instanceZuid?: string): Promise<MediaBin> {
+      const z = resolveInstance(instanceZuid);
+      const instance = await accounts.getInstance(z);
+      const numericId = instance.ID;
+      if (!numericId) throw new Error(`Instance ${z} has no numeric ID`);
+      const bins = await mediaBins.list(numericId);
+      if (!bins.length) throw new Error(`No media bins found for instance ${z}`);
+      return bins.find((b) => b.default) ?? bins[0];
+    },
+
+    // ── Deprecated aliases (moved to media.files.*) ────────────────────────
+
+    /** @deprecated Use media.files.search() instead. */
+    async search(binZuid: string, term: string, opts: { limit?: number } = {}): Promise<MediaFile[]> {
+      return mediaFiles.search(binZuid, term, opts);
+    },
+
+    /** @deprecated Use media.files.list() instead. */
+    async listFiles(numericInstanceId: number | string, groupId: string): Promise<MediaFile[]> {
+      return mediaFiles.list(numericInstanceId, groupId);
+    },
+
+    /** @deprecated Use media.files.update() instead. */
+    async updateFile(fileId: string, data: { title?: string; filename?: string }): Promise<MediaFile> {
+      return mediaFiles.update(fileId, data);
+    },
+
+    /** @deprecated Use media.files.delete() instead. */
+    async deleteFile(fileId: string): Promise<unknown> {
+      return mediaFiles.delete(fileId);
+    },
+  };
+
+  const mediaGroups = {
+    /**
+     * List groups (subfolders) within a bin.
+     * <!-- http: GET https://media-manager.api.zesty.io/bin/{binId}/groups -->
+     */
+    async list(binId: string): Promise<MediaGroup[]> {
+      return request<MediaGroup[]>("GET", mediaManagerUrl(`/bin/${binId}/groups`));
+    },
+  };
+
+  const mediaFiles = {
+    /**
+     * Get a single media file by its ZUIDZUID.
+     * <!-- http: GET https://media-manager.api.zesty.io/file/{fileZuid} -->
+     */
+    async get(fileZuid: string): Promise<MediaFile> {
+      return request<MediaFile>("GET", mediaManagerUrl(`/file/${fileZuid}`));
+    },
+
+    /**
+     * Search media files by term (filename / title).
+     * <!-- http: GET https://media-manager.api.zesty.io/search/files?bins={binZuid}&term={term} -->
      */
     async search(
       binZuid: string,
@@ -1463,76 +1561,75 @@ export function createZestySdk(config: ZestyConfig = {}) {
     },
 
     /**
-     * List files in a media group/bin.
-     * GET https://media-manager.api.zesty.io/site/{instanceId}/groups/{groupId}/files
+     * List files in a group/bin.
+     * <!-- http: GET https://media-manager.api.zesty.io/site/{numericInstanceId}/groups/{groupId}/files -->
      */
-    async listFiles(instanceId: number | string, groupId: string): Promise<MediaFile[]> {
-      return request<MediaFile[]>("GET", mediaManagerUrl(`/site/${instanceId}/groups/${groupId}/files`));
+    async list(numericInstanceId: number | string, groupId: string): Promise<MediaFile[]> {
+      return request<MediaFile[]>("GET", mediaManagerUrl(`/site/${numericInstanceId}/groups/${groupId}/files`));
     },
 
     /**
      * Update a media file's metadata.
-     * PATCH https://media-manager.api.zesty.io/media/{fileId}
+     * <!-- http: PATCH https://media-manager.api.zesty.io/media/{fileId} -->
      */
-    async updateFile(fileId: string, data: { title?: string; filename?: string }): Promise<MediaFile> {
+    async update(fileId: string, data: { title?: string; filename?: string }): Promise<MediaFile> {
       return request<MediaFile>("PATCH", mediaManagerUrl(`/media/${fileId}`), { body: data });
     },
 
     /**
      * Delete a media file.
-     * DELETE https://media-manager.api.zesty.io/media/{fileId}
+     * <!-- http: DELETE https://media-manager.api.zesty.io/media/{fileId} -->
      */
-    async deleteFile(fileId: string): Promise<unknown> {
+    async delete(fileId: string): Promise<unknown> {
       return request("DELETE", mediaManagerUrl(`/media/${fileId}`));
-    },
-  };
-
-  const mediaFiles = {
-    /**
-     * Get a single media file by its ZUIDZUID.
-     * GET https://media-manager.api.zesty.io/file/{fileZuid}
-     */
-    async get(fileZuid: string): Promise<MediaFile> {
-      return request<MediaFile>("GET", mediaManagerUrl(`/file/${fileZuid}`));
     },
   };
 
   const media = {
     bins: mediaBins,
+    groups: mediaGroups,
     files: mediaFiles,
 
     /**
      * Upload a file to the Zesty Media Storage API.
      *
-     * FormData fields (required by Zesty):
-     *   bin_id   — ZUIDZUID of the media bin
-     *   user_id  — ZUIDZUID of the user performing the upload
-     *   group_id — ZUIDZUID of the group (same as bin_id for root uploads)
-     *   file     — the file Blob with filename
-     *   title    — (optional) display title
+     * The SDK fetches the target bin to resolve its GCP `storage_name`, then
+     * POSTs multipart form data to the media-storage upload endpoint.
+     * This matches the upload flow used by web-agent.
      *
-     * @param bucketName  - storage_name from the bin (e.g. "my-instance-abc123")
-     * @param file        - File | Blob | ArrayBuffer | Buffer
-     * @param opts.binId  - media bin ZUIDZUID
-     * @param opts.userId - uploading user ZUIDZUID
-     * @param opts.groupId - group ZUIDZUID (defaults to binId)
-     * @param opts.filename - filename for the upload
-     * @param opts.mimeType - MIME type (default: "image/png")
-     * @param opts.title   - display title (optional)
+     * <!-- http: POST https://media-storage.api.zesty.io/upload/gcp/{storageName} -->
+     *
+     * @param file      - File, Blob, or ArrayBuffer to upload.
+     * @param opts.binZuid   - ZUIDZUID of the target bin (from bin.id).
+     * @param opts.userId    - ZUIDZUID of the uploading user (from auth.verify() or instance.createdByUserZUID).
+     * @param opts.groupZuid - ZUIDZUID of a subfolder group (defaults to binZuid for root uploads).
+     * @param opts.filename  - Filename for the upload (defaults to File.name or "upload").
+     * @param opts.mimeType  - MIME type (defaults to "application/octet-stream").
+     * @param opts.title     - Optional display title.
+     *
+     * @example
+     * const bin = await sdk.media.bins.getDefault(instanceZuid);
+     * const user = await sdk.auth.verify();
+     * const uploaded = await sdk.media.upload(file, { binZuid: bin.id, userId: user.ZUIDZUID });
+     * console.log(uploaded.url); // CDN URL
      */
     async upload(
-      bucketName: string,
       file: File | Blob | ArrayBuffer,
       opts: {
-        binId: string;
+        binZuid: string;
         userId: string;
-        groupId?: string;
+        groupZuid?: string;
         filename?: string;
         mimeType?: string;
         title?: string;
       },
     ): Promise<MediaFile> {
-      const { binId, userId, groupId = binId, filename = "upload", mimeType = "image/png", title } = opts;
+      const { binZuid, userId, filename = "upload", mimeType = "application/octet-stream", title } = opts;
+
+      // Fetch the bin to resolve storage_name
+      const bin = await mediaBins.get(binZuid);
+      const storageName = bin.storage_name;
+      const groupZuid = opts.groupZuid ?? binZuid;
 
       let blob: Blob;
       if (file instanceof File || file instanceof Blob) {
@@ -1542,19 +1639,18 @@ export function createZestySdk(config: ZestyConfig = {}) {
       }
 
       const formData = new FormData();
-      formData.append("bin_id", binId);
+      formData.append("bin_id", binZuid);
       formData.append("user_id", userId);
-      formData.append("group_id", groupId);
+      formData.append("group_id", groupZuid);
       if (title) formData.append("title", title);
       formData.append("file", blob, file instanceof File ? file.name : filename);
 
       const result = await request<MediaFile[] | MediaFile>(
         "POST",
-        mediaStorageUrl(`/upload/gcp/${bucketName}`),
+        mediaStorageUrl(`/upload/gcp/${storageName}`),
         { formData },
       );
 
-      // Response is an array; return the first entry
       return Array.isArray(result) ? result[0] : result;
     },
   };
