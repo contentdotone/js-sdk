@@ -1,29 +1,39 @@
 {
   "name": "js-sdk",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Zero-dependency TypeScript SDK for the Zesty.io API. Single-file drop-in.",
-  "main": "dist/zesty-sdk.js",
-  "module": "dist/zesty-sdk.js",
-  "types": "dist/zesty-sdk.d.ts",
+  "type": "module",
+  "main": "./dist/zesty-sdk.cjs",
+  "module": "./dist/zesty-sdk.mjs",
+  "types": "./dist/zesty-sdk.d.ts",
+  "unpkg": "./dist/zesty-sdk.min.js",
+  "jsdelivr": "./dist/zesty-sdk.min.js",
   "exports": {
     ".": {
-      "import": "./dist/zesty-sdk.js",
-      "require": "./dist/zesty-sdk.js",
-      "types": "./dist/zesty-sdk.d.ts"
+      "types": "./dist/zesty-sdk.d.ts",
+      "import": "./dist/zesty-sdk.mjs",
+      "require": "./dist/zesty-sdk.cjs"
     }
   },
-  "files": [
-    "dist",
-    "zesty-sdk.ts"
-  ],
+  "files": ["dist", "zesty-sdk.ts", "README.md", "LICENSE"],
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
-  "keywords": ["zesty", "cms", "sdk", "typescript", "zero-dependency"],
+  "keywords": ["zesty", "zesty.io", "cms", "headless", "sdk", "typescript"],
   "author": "Content.One",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/contentdotone/js-sdk.git"
+  },
+  "homepage": "https://github.com/contentdotone/js-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/contentdotone/js-sdk/issues"
+  },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
   }
 }

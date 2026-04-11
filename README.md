@@ -526,6 +526,319 @@ Pass `purgeCache: false` when publishing view versions during bulk operations to
 
 ---
 
+## Use it in your stack
+
+### Vanilla JS via cdnjs
+
+Once published to npm, `js-sdk` is mirrored on cdnjs at:
+- UMD (global): `https://cdnjs.cloudflare.com/ajax/libs/js-sdk/0.1.0/zesty-sdk.min.js`
+- ESM: `https://cdnjs.cloudflare.com/ajax/libs/js-sdk/0.1.0/zesty-sdk.mjs`
+
+The UMD build exposes a global `ZestySdk` object with all named exports.
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-sdk/0.1.0/zesty-sdk.min.js"></script>
+</head>
+<body>
+<script>
+  // readCookie + browser SSO session → no authToken needed on authenticated pages
+  const sdk = ZestySdk.createZestyVanilla({ instanceZuid: "8-abc-xyz" });
+
+  sdk.content.models.list("8-abc-xyz").then((models) => {
+    models.forEach((m) => console.log(m.name));
+  });
+
+  // Or pass an explicit token (PTK-... API token)
+  const sdk2 = ZestySdk.createZestyVanilla({ authToken: "PTK-my-token" });
+</script>
+</body>
+</html>
+```
+
+---
+
+### ES modules via cdnjs
+
+```html
+<script type="module">
+  import { createZestySdk } from "https://cdnjs.cloudflare.com/ajax/libs/js-sdk/0.1.0/zesty-sdk.mjs";
+
+  const sdk = createZestySdk({ authToken: "PTK-my-token", instanceZuid: "8-abc" });
+  const instances = await sdk.accounts.listInstances();
+  console.log(instances);
+</script>
+```
+
+---
+
+### Node.js (CommonJS)
+
+```js
+const { createZestyNode } = require("js-sdk");
+
+const sdk = createZestyNode({ authToken: process.env.ZESTY_TOKEN });
+
+sdk.content.models.list("8-abc-xyz").then((models) => console.log(models));
+```
+
+---
+
+### Node.js (ESM)
+
+```js
+import { createZestyNode } from "js-sdk";
+
+const sdk = createZestyNode({ authToken: process.env.ZESTY_TOKEN });
+const instances = await sdk.accounts.listInstances();
+```
+
+---
+
+### TypeScript
+
+Full intellisense out of the box — no extra `@types` package needed.
+
+```ts
+import createZestySdk, { type ZestySdk, type ContentModel, ZestyApiError } from "js-sdk";
+
+const sdk: ZestySdk = createZestySdk({
+  authToken: process.env.ZESTY_TOKEN,
+  instanceZuid: "8-abc-xyz",
+});
+
+// sdk.content.models.list() is fully typed → Promise<ContentModel[]>
+const models: ContentModel[] = await sdk.content.models.list();
+
+// Error type is exported for catch blocks
+try {
+  await sdk.content.items.get("8-abc", "7-model", "6-item");
+} catch (err) {
+  if (err instanceof ZestyApiError) {
+    console.error(err.status, err.url);
+  }
+}
+```
+
+---
+
+### Next.js (App Router)
+
+**Step 1 — Add the proxy routes** (copy these once per project):
+
+```ts
+// src/app/api/v1/[...path]/route.ts
+import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
+
+async function handler(req: NextRequest, { params }: { params: { path: string[] } }) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("APP_SID")?.value ?? cookieStore.get("DEV_APP_SID")?.value ?? "";
+  const url = `https://accounts.api.zesty.io/v1/${params.path.join("/")}`;
+  const search = req.nextUrl.search;
+  const res = await fetch(`${url}${search}`, {
+    method: req.method,
+    headers: { Authorization: token, "Content-Type": "application/json" },
+    body: req.method !== "GET" && req.method !== "HEAD" ? await req.text() : undefined,
+  });
+  const text = await res.text();
+  return new NextResponse(text, { status: res.status, headers: { "Content-Type": "application/json" } });
+}
+export { handler as GET, handler as POST, handler as PUT, handler as PATCH, handler as DELETE };
+```
+
+```ts
+// src/app/api/instance/[instanceZuid]/v1/[...path]/route.ts
+import { cookies } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
+
+async function handler(req: NextRequest, { params }: { params: { instanceZuid: string; path: string[] } }) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("APP_SID")?.value ?? cookieStore.get("DEV_APP_SID")?.value ?? "";
+  const url = `https://${params.instanceZuid}.api.zesty.io/v1/${params.path.join("/")}`;
+  const search = req.nextUrl.search;
+  const res = await fetch(`${url}${search}`, {
+    method: req.method,
+    headers: { Authorization: token, "Content-Type": "application/json" },
+    body: req.method !== "GET" && req.method !== "HEAD" ? await req.text() : undefined,
+  });
+  const text = await res.text();
+  return new NextResponse(text, { status: res.status, headers: { "Content-Type": "application/json" } });
+}
+export { handler as GET, handler as POST, handler as PUT, handler as PATCH, handler as DELETE };
+```
+
+**Step 2 — Use in a Server Component / Route Handler:**
+
+```ts
+// src/app/dashboard/page.tsx  (Server Component)
+import { createZestyNext } from "js-sdk";
+import { cookies } from "next/headers";
+
+export default async function DashboardPage() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("APP_SID")?.value;
+
+  const sdk = createZestyNext({ authToken: token });
+  const instances = await sdk.accounts.listInstances();
+
+  return <ul>{instances.map((i) => <li key={i.ZUIDZUID}>{i.name}</li>)}</ul>;
+}
+```
+
+**Step 3 — Use in a Client Component with React context:**
+
+```tsx
+// src/app/providers.tsx  ("use client")
+"use client";
+import React from "react";
+import { createZestyReact } from "js-sdk";
+
+export const { ZestyProvider, useZesty } = createZestyReact(React, {
+  instanceZuid: process.env.NEXT_PUBLIC_INSTANCE_ZUID,
+});
+```
+
+```tsx
+// src/app/layout.tsx
+import { ZestyProvider } from "./providers";
+export default function RootLayout({ children }) {
+  return <html><body><ZestyProvider>{children}</ZestyProvider></body></html>;
+}
+```
+
+```tsx
+// src/components/ModelList.tsx  ("use client")
+"use client";
+import { useZesty } from "../app/providers";
+import { useEffect, useState } from "react";
+
+export function ModelList() {
+  const sdk = useZesty();
+  const [models, setModels] = useState([]);
+  useEffect(() => { sdk.content.models.list().then(setModels); }, [sdk]);
+  return <ul>{models.map((m) => <li key={m.ZUIDZUID}>{m.name}</li>)}</ul>;
+}
+```
+
+---
+
+### React
+
+```tsx
+// src/sdk.ts
+import React from "react";
+import { createZestyReact } from "js-sdk";
+
+export const { ZestyProvider, useZesty } = createZestyReact(React, {
+  authToken: process.env.REACT_APP_ZESTY_TOKEN,
+  instanceZuid: process.env.REACT_APP_INSTANCE_ZUID,
+});
+```
+
+```tsx
+// src/index.tsx
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import { ZestyProvider } from "./sdk";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <ZestyProvider><App /></ZestyProvider>
+);
+```
+
+```tsx
+// src/components/ModelList.tsx
+import { useZesty } from "../sdk";
+import { useEffect, useState } from "react";
+
+export function ModelList() {
+  const sdk = useZesty();
+  const [models, setModels] = useState([]);
+  useEffect(() => { sdk.content.models.list().then(setModels); }, [sdk]);
+  return <ul>{models.map((m) => <li key={m.ZUIDZUID}>{m.name}</li>)}</ul>;
+}
+```
+
+---
+
+### Vue 3
+
+```ts
+// src/main.ts
+import { createApp } from "vue";
+import App from "./App.vue";
+import { createZestyVuePlugin } from "js-sdk";
+
+const app = createApp(App);
+app.use(createZestyVuePlugin({
+  authToken: import.meta.env.VITE_ZESTY_TOKEN,
+  instanceZuid: import.meta.env.VITE_INSTANCE_ZUID,
+}));
+app.mount("#app");
+```
+
+```vue
+<!-- src/components/ModelList.vue -->
+<script setup lang="ts">
+import { inject, onMounted, ref } from "vue";
+import { zestyKey, type ZestySdk } from "js-sdk";
+
+const sdk = inject(zestyKey) as ZestySdk;
+const models = ref([]);
+onMounted(async () => { models.value = await sdk.content.models.list(); });
+</script>
+<template>
+  <ul><li v-for="m in models" :key="m.ZUIDZUID">{{ m.name }}</li></ul>
+</template>
+```
+
+---
+
+### Cloudflare Workers
+
+```ts
+// worker.ts
+import createZestySdk from "js-sdk";
+
+export default {
+  async fetch(request: Request, env: { ZESTY_TOKEN: string; INSTANCE_ZUID: string }) {
+    const sdk = createZestySdk({
+      authToken: env.ZESTY_TOKEN,
+      instanceZuid: env.INSTANCE_ZUID,
+      fetch: globalThis.fetch,   // Workers provide a compliant fetch
+    });
+
+    const models = await sdk.content.models.list();
+    return new Response(JSON.stringify(models), {
+      headers: { "Content-Type": "application/json" },
+    });
+  },
+};
+```
+
+---
+
+### Deno / Bun
+
+The SDK uses only native `fetch` and `FormData` — it runs unchanged in Deno and Bun.
+
+```ts
+// Deno
+import createZestySdk from "npm:js-sdk";
+const sdk = createZestySdk({ authToken: Deno.env.get("ZESTY_TOKEN") });
+const instances = await sdk.accounts.listInstances();
+
+// Bun
+import createZestySdk from "js-sdk";
+const sdk = createZestySdk({ authToken: process.env.ZESTY_TOKEN });
+const instances = await sdk.accounts.listInstances();
+```
+
+---
+
 ## License
 
 MIT © Content.One

@@ -1568,3 +1568,222 @@ export function createZestySdk(config: ZestyConfig = {}) {
 }
 
 export default createZestySdk;
+
+// ─── Adapters ─────────────────────────────────────────────────────────────────
+//
+// Each adapter calls createZestySdk under the hood and pre-fills config that is
+// idiomatic for the target environment. Consumers get the same ZestySdk shape
+// regardless of which adapter they use.
+
+/**
+ * readCookie — reads a browser cookie by name.
+ * Returns undefined when running outside a browser or cookie not set.
+ * @pure — no side-effects beyond reading document.cookie.
+ */
+function readCookie(name: string): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+/**
+ * createZestyVanilla — browser-friendly adapter.
+ *
+ * Automatically reads the APP_SID or DEV_APP_SID session cookie so consumers
+ * using a vanilla <script> tag don't need to wire up auth manually.
+ *
+ * Usage (after loading zesty-sdk.min.js via <script>):
+ *   const sdk = ZestySdk.createZestyVanilla({ instanceZuid: "8-abc" });
+ *   const models = await sdk.content.models.list();
+ *
+ * @param config - Partial ZestyConfig. authToken defaults to cookie value.
+ */
+export function createZestyVanilla(config: Omit<ZestyConfig, "authToken"> & { authToken?: string } = {}): ZestySdk {
+  const token =
+    config.authToken ??
+    config.sessionToken ??
+    readCookie("APP_SID") ??
+    readCookie("DEV_APP_SID");
+  return createZestySdk({ ...config, authToken: token });
+}
+
+/**
+ * createZestyNode — server-friendly adapter.
+ *
+ * Requires an explicit authToken — throws synchronously at init time if none
+ * is provided, since there is no cookie jar or browser context to fall back on.
+ * Works in Node 18+ with native fetch.
+ *
+ * Usage:
+ *   import { createZestyNode } from "js-sdk";
+ *   const sdk = createZestyNode({ authToken: process.env.ZESTY_TOKEN });
+ *
+ * @param config - ZestyConfig. authToken is required.
+ * @throws {Error} if no authToken is provided.
+ */
+export function createZestyNode(
+  config: Omit<ZestyConfig, "authToken"> & { authToken: string },
+): ZestySdk {
+  if (!config.authToken) {
+    throw new Error(
+      "[js-sdk] createZestyNode requires an explicit authToken. " +
+        "Pass { authToken: process.env.ZESTY_TOKEN } or similar.",
+    );
+  }
+  return createZestySdk(config);
+}
+
+/**
+ * createZestyNext — Next.js App Router adapter.
+ *
+ * Pre-wires all three base URL overrides to the conventional proxy paths used
+ * in Content.One Next.js apps. The caller still has to implement the three
+ * catch-all API routes (see README), but the SDK is ready to use them
+ * without any further config.
+ *
+ * Defaults (all overridable via config):
+ *   accountsBaseUrlOverride  → "/api/v1"
+ *   contentBaseUrlOverride   → "/api/instance/{instanceZuid}/v1"
+ *   mediaBaseUrlOverride     → "/api/media"
+ *
+ * Usage in a Next.js Server Component or Route Handler:
+ *   import { createZestyNext } from "js-sdk";
+ *   const sdk = createZestyNext({ authToken: cookies().get("APP_SID")?.value });
+ *
+ * Usage in a Client Component:
+ *   const sdk = createZestyNext({ instanceZuid: "8-abc" }); // reads cookie
+ *
+ * @param config - Partial ZestyConfig with optional proxy overrides.
+ */
+export function createZestyNext(
+  config: Omit<ZestyConfig, "authToken"> & { authToken?: string } = {},
+): ZestySdk {
+  const token =
+    config.authToken ??
+    config.sessionToken ??
+    readCookie("APP_SID") ??
+    readCookie("DEV_APP_SID");
+  return createZestySdk({
+    accountsBaseUrlOverride: "/api/v1",
+    contentBaseUrlOverride: "/api/instance/{instanceZuid}/v1",
+    mediaBaseUrlOverride: "/api/media",
+    ...config,
+    authToken: token,
+  });
+}
+
+// ─── Vue 3 adapter ────────────────────────────────────────────────────────────
+
+/**
+ * zestyKey — Vue injection key.
+ * Use with Vue's provide/inject: inject(zestyKey) returns the ZestySdk.
+ *
+ *   import { zestyKey } from "js-sdk";
+ *   const sdk = inject(zestyKey)!;
+ */
+export const zestyKey: unique symbol = Symbol("zesty-sdk");
+
+/** Minimal subset of a Vue 3 App needed for the plugin install step. */
+interface VueApp {
+  provide(key: symbol, value: unknown): void;
+}
+
+/**
+ * createZestyVuePlugin — Vue 3 plugin factory.
+ *
+ * Returns an object with an `install` method compatible with Vue 3's Plugin
+ * interface. Call `app.use(createZestyVuePlugin(config))` once in main.ts,
+ * then `inject(zestyKey)` in any component to get the SDK.
+ *
+ * Usage (main.ts):
+ *   import { createApp } from "vue";
+ *   import { createZestyVuePlugin, zestyKey } from "js-sdk";
+ *   const app = createApp(App);
+ *   app.use(createZestyVuePlugin({ authToken: import.meta.env.VITE_ZESTY_TOKEN }));
+ *   app.mount("#app");
+ *
+ * Usage (component):
+ *   import { inject } from "vue";
+ *   import { zestyKey } from "js-sdk";
+ *   const sdk = inject(zestyKey)!; // typed as ZestySdk
+ *
+ * @param config - ZestyConfig passed straight through to createZestySdk.
+ */
+export function createZestyVuePlugin(config: ZestyConfig): { install(app: VueApp): void } {
+  const sdk = createZestySdk(config);
+  return {
+    install(app: VueApp) {
+      app.provide(zestyKey, sdk);
+    },
+  };
+}
+
+// ─── React adapter ────────────────────────────────────────────────────────────
+
+/** Minimal React interface needed by createZestyReact — no React dep required. */
+interface ReactLike {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createContext<T>(defaultValue: T): any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useContext(ctx: any): any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createElement(type: any, props?: any, ...children: any[]): any;
+}
+
+/** Return type of createZestyReact — typed component + hook. */
+export interface ZestyReactBindings {
+  /** Wrap your app (or subtree) in ZestyProvider to make the SDK available. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ZestyProvider: (props: { children: any }) => any;
+  /** Call inside any component to get the ZestySdk instance. */
+  useZesty: () => ZestySdk;
+}
+
+/**
+ * createZestyReact — React context + hook factory.
+ *
+ * Pass your React import as the first argument so the adapter can create a
+ * context without React being a hard dependency of js-sdk.
+ *
+ * Usage:
+ *   import React from "react";
+ *   import { createZestyReact } from "js-sdk";
+ *
+ *   const { ZestyProvider, useZesty } = createZestyReact(React, {
+ *     authToken: process.env.NEXT_PUBLIC_ZESTY_TOKEN,
+ *     instanceZuid: "8-abc",
+ *   });
+ *
+ *   // In your root component:
+ *   export default function App({ children }) {
+ *     return <ZestyProvider>{children}</ZestyProvider>;
+ *   }
+ *
+ *   // In any descendant:
+ *   function MyComponent() {
+ *     const sdk = useZesty();
+ *     ...
+ *   }
+ *
+ * @param React  - Your React import (or compatible interface).
+ * @param config - ZestyConfig passed to createZestySdk.
+ */
+export function createZestyReact(React: ReactLike, config: ZestyConfig): ZestyReactBindings {
+  const sdk = createZestySdk(config);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ZestyContext = React.createContext<ZestySdk | null>(null);
+
+  function ZestyProvider(props: { children: unknown }) {
+    return React.createElement(ZestyContext.Provider, { value: sdk }, props.children);
+  }
+
+  function useZesty(): ZestySdk {
+    const ctx = React.useContext(ZestyContext) as ZestySdk | null;
+    if (!ctx) {
+      throw new Error("[js-sdk] useZesty must be called inside a <ZestyProvider>.");
+    }
+    return ctx;
+  }
+
+  return { ZestyProvider, useZesty };
+}
