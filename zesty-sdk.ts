@@ -17,7 +17,7 @@ export interface ZestyConfig {
   authToken?: string;
   /** Session token (APP_SID) — alternative to authToken */
   sessionToken?: string;
-  /** Default instance ZUIDZUID for content-api calls */
+  /** Default instance ZUID for content-api calls */
   instanceZuid?: string;
   /** default: https://accounts.api.zesty.io/v1 */
   accountsBaseUrl?: string;
@@ -68,7 +68,7 @@ export class ZestyApiError extends Error {
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface Instance {
-  ZUIDZUID: string;
+  ZUID: string;
   name: string;
   ID?: number;
   randomHashID?: string;
@@ -81,7 +81,7 @@ export interface Instance {
 }
 
 export interface User {
-  ZUIDZUID: string;
+  ZUID: string;
   firstName?: string;
   lastName?: string;
   email?: string;
@@ -91,7 +91,7 @@ export interface User {
 }
 
 export interface Role {
-  ZUIDZUID: string;
+  ZUID: string;
   name: string;
   description?: string;
   instanceZUID?: string;
@@ -102,7 +102,7 @@ export interface Role {
 }
 
 export interface GranularRole {
-  ZUIDZUID?: string;
+  ZUID?: string;
   resourceZUID: string;
   roleZUID: string;
   create?: boolean;
@@ -114,7 +114,7 @@ export interface GranularRole {
 }
 
 export interface Team {
-  ZUIDZUID: string;
+  ZUID: string;
   name: string;
   description?: string;
   createdAt?: string;
@@ -122,14 +122,14 @@ export interface Team {
 }
 
 export interface TeamMember {
-  ZUIDZUID: string;
+  ZUID: string;
   email?: string;
   firstName?: string;
   lastName?: string;
 }
 
 export interface Invite {
-  ZUIDZUID?: string;
+  ZUID?: string;
   inviteeName: string;
   inviteeEmail: string;
   entityZUID: string;
@@ -138,7 +138,7 @@ export interface Invite {
 }
 
 export interface Domain {
-  ZUIDZUID: string;
+  ZUID: string;
   domain: string;
   branch?: string;
   createdAt?: string;
@@ -146,7 +146,7 @@ export interface Domain {
 }
 
 export interface Token {
-  ZUIDZUID: string;
+  ZUID: string;
   name: string;
   token?: string;
   roleZUID?: string;
@@ -156,7 +156,7 @@ export interface Token {
 }
 
 export interface Webhook {
-  ZUIDZUID: string;
+  ZUID: string;
   method: string;
   url: string;
   eventAction?: number;
@@ -167,7 +167,7 @@ export interface Webhook {
 }
 
 export interface AuditLog {
-  ZUIDZUID?: string;
+  ZUID?: string;
   action?: string;
   meta?: Record<string, unknown>;
   affectedZUID?: string;
@@ -176,7 +176,7 @@ export interface AuditLog {
 }
 
 export interface ContentModel {
-  ZUIDZUID: string;
+  ZUID: string;
   name: string;
   label?: string;
   type: "templateset" | "pageset" | "dataset" | "external";
@@ -185,7 +185,7 @@ export interface ContentModel {
 }
 
 export interface ContentField {
-  ZUIDZUID: string;
+  ZUID: string;
   name: string;
   label: string;
   datatype: string;
@@ -201,7 +201,7 @@ export interface ContentField {
 }
 
 export interface ContentItemMeta {
-  ZUIDZUID: string;
+  ZUID: string;
   zid?: number;
   masterZUID?: string;
   contentModelZUID?: string;
@@ -237,20 +237,20 @@ export interface ContentItem {
 }
 
 export interface ContentView {
-  ZUIDZUID: string;
+  ZUID: string;
   fileName: string;
   code?: string;
   type?: string;
   status?: string;
   version?: number;
-  model_ZUIDZUID?: string;
+  model_ZUID?: string;
   contentModelZUID?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface HeadTag {
-  ZUIDZUID: string;
+  ZUID: string;
   resourceZUID: string;
   type: string;
   attributes: Record<string, string>;
@@ -259,7 +259,7 @@ export interface HeadTag {
 }
 
 export interface InstanceSetting {
-  ZUIDZUID: string;
+  ZUID: string;
   key: string;
   keyFriendly?: string;
   value: string | boolean;
@@ -271,7 +271,7 @@ export interface InstanceSetting {
 
 /** Top-level media container per instance. Each instance has at least one bin. */
 export interface MediaBin {
-  /** ZUIDZUID for this bin, e.g. "1-14f97646-ksjch7". Pass this as binZuid to media.upload(). */
+  /** ZUID for this bin, e.g. "1-14f97646-ksjch7". Pass this as binZuid to media.upload(). */
   id: string;
   name: string;
   /** Numeric instance ID as a string (matches Instance.ID). */
@@ -290,7 +290,7 @@ export interface MediaBin {
   deleted_from_storage_at: string | null;
 }
 
-/** Subfolder within a bin. Group ZUIDZUID can be passed as groupZuid to media.upload(). */
+/** Subfolder within a bin. Group ZUID can be passed as groupZuid to media.upload(). */
 export interface MediaGroup {
   id: string;
   name?: string;
@@ -333,7 +333,7 @@ export interface UsageReport {
 }
 
 export interface ContentRedirect {
-  ZUIDZUID?: string;
+  ZUID?: string;
   from: string;
   to: string;
   code?: number;
@@ -539,7 +539,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
     },
 
     /**
-     * Get a specific user by ZUIDZUID.
+     * Get a specific user by ZUID.
      * GET /users/{userZuid}
      */
     async get(userZuid: string): Promise<User> {
@@ -601,7 +601,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
     },
 
     /**
-     * Get a single instance by ZUIDZUID.
+     * Get a single instance by ZUID.
      * GET /instances/{instanceZuid}
      */
     async getInstance(instanceZuid?: string): Promise<Instance> {
@@ -712,7 +712,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
      * Create a granular permission rule.
      * POST /roles/{roleZuid}/granularRoles
      */
-    async createGranular(roleZuid: string, data: Omit<GranularRole, "ZUIDZUID">): Promise<GranularRole> {
+    async createGranular(roleZuid: string, data: Omit<GranularRole, "ZUID">): Promise<GranularRole> {
       return request<GranularRole>("POST", accountsUrl(`/roles/${roleZuid}/granularRoles`), { body: data });
     },
 
@@ -869,7 +869,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
      *
      * @param inviteeName - Display name
      * @param inviteeEmail - Email address
-     * @param entityZUID - Instance ZUIDZUID the invite is for
+     * @param entityZUID - Instance ZUID the invite is for
      * @param accessLevel - Integer 1–5 (1=Contributor, 2=Publisher, 3=Developer, 4=SEO, 5=Admin)
      */
     async create(
@@ -1090,7 +1090,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
      */
     async create(
       modelZuid: string,
-      data: Omit<ContentField, "ZUIDZUID"> & { contentModelZUID?: string },
+      data: Omit<ContentField, "ZUID"> & { contentModelZUID?: string },
       instanceZuid?: string,
     ): Promise<ContentField> {
       const z = resolveInstance(instanceZuid);
@@ -1456,7 +1456,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
   //           marked with `default: true`.
   //   group — subfolder within a bin (optional nesting). group_id defaults to
   //           bin id for root-level uploads.
-  //   file  — a single uploaded asset. Identified by its ZUIDZUID (e.g. "3-…").
+  //   file  — a single uploaded asset. Identified by its ZUID (e.g. "3-…").
   //
   // Endpoints:
   //   media-manager: https://media-manager.api.zesty.io  (metadata)
@@ -1469,7 +1469,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
      * List all media bins for an instance.
      * <!-- http: GET https://media-manager.api.zesty.io/site/{numericInstanceId}/bins -->
      *
-     * @param numericInstanceId - Instance.ID (numeric), not the ZUIDZUID.
+     * @param numericInstanceId - Instance.ID (numeric), not the ZUID.
      *   Call accounts.getInstance(instanceZuid) to get Instance.ID.
      */
     async list(numericInstanceId: number | string): Promise<MediaBin[]> {
@@ -1477,7 +1477,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
     },
 
     /**
-     * Get a single media bin by its ZUIDZUID.
+     * Get a single media bin by its ZUID.
      * <!-- http: GET https://media-manager.api.zesty.io/bin/{binId} -->
      */
     async get(binId: string): Promise<MediaBin> {
@@ -1492,7 +1492,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
      * Internally calls accounts.getInstance() to resolve the numeric ID, then lists bins.
      * Returns the bin with `default: true`, or the first bin if none is flagged.
      *
-     * @param instanceZuid - Instance ZUIDZUID (uses SDK default if omitted).
+     * @param instanceZuid - Instance ZUID (uses SDK default if omitted).
      */
     async getDefault(instanceZuid?: string): Promise<MediaBin> {
       const z = resolveInstance(instanceZuid);
@@ -1539,7 +1539,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
 
   const mediaFiles = {
     /**
-     * Get a single media file by its ZUIDZUID.
+     * Get a single media file by its ZUID.
      * <!-- http: GET https://media-manager.api.zesty.io/file/{fileZuid} -->
      */
     async get(fileZuid: string): Promise<MediaFile> {
@@ -1600,9 +1600,9 @@ export function createZestySdk(config: ZestyConfig = {}) {
      * <!-- http: POST https://media-storage.api.zesty.io/upload/gcp/{storageName} -->
      *
      * @param file      - File, Blob, or ArrayBuffer to upload.
-     * @param opts.binZuid   - ZUIDZUID of the target bin (from bin.id).
-     * @param opts.userId    - ZUIDZUID of the uploading user (from auth.verify() or instance.createdByUserZUID).
-     * @param opts.groupZuid - ZUIDZUID of a subfolder group (defaults to binZuid for root uploads).
+     * @param opts.binZuid   - ZUID of the target bin (from bin.id).
+     * @param opts.userId    - ZUID of the uploading user (from auth.verify() or instance.createdByUserZUID).
+     * @param opts.groupZuid - ZUID of a subfolder group (defaults to binZuid for root uploads).
      * @param opts.filename  - Filename for the upload (defaults to File.name or "upload").
      * @param opts.mimeType  - MIME type (defaults to "application/octet-stream").
      * @param opts.title     - Optional display title.
@@ -1610,7 +1610,7 @@ export function createZestySdk(config: ZestyConfig = {}) {
      * @example
      * const bin = await sdk.media.bins.getDefault(instanceZuid);
      * const user = await sdk.auth.verify();
-     * const uploaded = await sdk.media.upload(file, { binZuid: bin.id, userId: user.ZUIDZUID });
+     * const uploaded = await sdk.media.upload(file, { binZuid: bin.id, userId: user.ZUID });
      * console.log(uploaded.url); // CDN URL
      */
     async upload(
